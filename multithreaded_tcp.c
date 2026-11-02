@@ -3,16 +3,17 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include<fcntl.h>
+#include <fcntl.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <pthread.h>
 
 
 #define PATH_MAX    1000
-void Handle_Connections(int clientfd);
+void * Handle_Connections(void* pclientfd);
 
 
 int main()
@@ -138,16 +139,20 @@ int main()
 
         printf("client port : %d , client ip address %s\n", client_addr.sin_port, inet_ntoa(client_addr.sin_addr));
 
-        Handle_Connections(clientfd);
-        close(clientfd);
+        pthread_t t;
+        void* pclient = malloc(sizeof(int));
+        *(int*)pclient = clientfd;
+        pthread_create(&t, NULL, Handle_Connections, pclient);
     }
     close(sockfd);
     return 0;
 
 }
 
-    void Handle_Connections(int clientfd)
+    void * Handle_Connections(void* pclientfd)
     {
+        int client_socket = *(int*)pclientfd;
+        free(pclientfd);
         char buff[255];
         ssize_t bytes_read;
         int msgSize = 0;
@@ -156,15 +161,15 @@ int main()
         /* Read client's message until newline or buffer is full */
         while (msgSize < (int)sizeof(buff) - 1)
         {
-            bytes_read = read(clientfd, buff + msgSize, sizeof(buff) - 1 - msgSize);
+            bytes_read = read(client_socket, buff + msgSize, sizeof(buff) - 1 - msgSize);
             if (bytes_read <= 0) break;
             msgSize += bytes_read;
             if (buff[msgSize - 1] == '\n') break;
         }
     
         if (msgSize <= 0) {
-            close(clientfd);
-            return;
+            close(client_socket);
+            return NULL;
         }
     
         /* Strip newline and null-terminate */
@@ -178,25 +183,27 @@ int main()
         if (realpath(buff, actualPath) == NULL)
         {
             perror("path error");
-            close(clientfd);
-            return;
+            close(client_socket);
+            return NULL;
         }
 
         FILE *fp = fopen(actualPath, "r");
         if (fp == NULL)
         {
             perror("failed to open file");
-            close(clientfd);
-            return;
+            close(client_socket);
+            return NULL;
         }
 
         size_t n;
         while ((n = fread(buff, 1, sizeof(buff), fp)) > 0)
         {
-            printf("sending %zu bytes\n", n);
-            write(clientfd, buff, n);   
+            //printf("sending %zu bytes\n", n);
+            write(client_socket, buff, n);   
         }
+        close(client_socket);
         fclose(fp);
+        return NULL;
     }
 
 // nc -l -p 12345
