@@ -13,11 +13,22 @@
 
 
 #define PATH_MAX    1000
+#define THREAD_POOL_SIZE 20
+
+pthread_t thread_pool[THREAD_POOL_SIZE];
+
 void * Handle_Connections(void* pclientfd);
+void * thread_function(void* arg);
 
 
 int main()
 {
+
+    for(int i = 0; i < THREAD_POOL_SIZE; i++)
+    {
+        pthread_create(thread_pool, NULL, thread_function, NULL);
+    }
+    
     /*
     NAME
         socket - create an endpoint for communication
@@ -139,10 +150,12 @@ int main()
 
         printf("client port : %d , client ip address %s\n", client_addr.sin_port, inet_ntoa(client_addr.sin_addr));
 
-        pthread_t t;
+       /* pthread_t t;
         void* pclient = malloc(sizeof(int));
         *(int*)pclient = clientfd;
-        pthread_create(&t, NULL, Handle_Connections, pclient);
+        pthread_create(&t, NULL, Handle_Connections, pclient); */
+
+        /* put connection infos where threads can find them*/
     }
     close(sockfd);
     return 0;
