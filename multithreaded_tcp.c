@@ -10,12 +10,13 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <pthread.h>
-
+#include "my_queue.h"
 
 #define PATH_MAX    1000
 #define THREAD_POOL_SIZE 20
 
 pthread_t thread_pool[THREAD_POOL_SIZE];
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void * Handle_Connections(void* pclientfd);
 void * thread_function(void* arg);
@@ -26,7 +27,7 @@ int main()
 
     for(int i = 0; i < THREAD_POOL_SIZE; i++)
     {
-        pthread_create(thread_pool, NULL, thread_function, NULL);
+        pthread_create(&thread_pool[i], NULL, thread_function, NULL);
     }
     
     /*
@@ -154,8 +155,14 @@ int main()
         void* pclient = malloc(sizeof(int));
         *(int*)pclient = clientfd;
         pthread_create(&t, NULL, Handle_Connections, pclient); */
+        void* pclient = malloc(sizeof(int));
+        *(int*)pclient = clientfd;
+        pthread_mutex_lock(&mutex);
+        enqueue(pclient);
+        pthread_mutex_unlock(&mutex);
 
-        /* put connection infos where threads can find them*/
+        /* put connection infos where threads can find them */
+
     }
     close(sockfd);
     return 0;
@@ -218,5 +225,23 @@ int main()
         fclose(fp);
         return NULL;
     }
+
+void * thread_function(void* arg)
+{
+    (void)arg; // Silences the unused parameter warning
+
+    while (1) {
+        int* pclient;
+        pthread_mutex_lock(&mutex);
+        pclient = dequeue();
+        pthread_mutex_unlock(&mutex);
+        if(pclient != NULL)
+        {
+            // we have connection => we have work to do
+            Handle_Connections(pclient);
+        }
+    }
+}
+
 
 // nc -l -p 12345
